@@ -1,11 +1,11 @@
 import datetime
 import typing
-from dataclasses import InitVar, dataclass, field
+from dataclasses import InitVar, asdict, dataclass, field
 
 import aiohttp
 
 from . import GOOGLE_TOKEN_URI
-from .helpers import NoAsDict
+from .helpers import NoAsDict, _no_as_dict_factory
 
 
 @dataclass
@@ -108,6 +108,13 @@ class Event:
             self.creator = Person(**self.creator)
         if isinstance(self.organizer, dict):
             self.organizer = Person(**self.organizer)
+
+    def dict(self):
+        return asdict(self, dict_factory=_no_as_dict_factory)
+
+    def to_str(self):
+        import ujson as json
+        return json.dumps(self.dict(), indent=4, ensure_ascii=False)
 
 
 @dataclass
