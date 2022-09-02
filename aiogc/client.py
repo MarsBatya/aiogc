@@ -66,7 +66,7 @@ class EventsManager:
         await self.session.close()
 
     async def __aenter__(self):
-        return self
+        return await self.start()
 
     async def __aexit__(self, *args, **kwargs):
         await self.stop()
