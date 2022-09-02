@@ -97,6 +97,7 @@ class Event:
     reminders: dict = NoAsDict
     source: dict = NoAsDict
     attachments: typing.List[dict] = NoAsDict
+    eventType: str = NoAsDict
 
     def __post_init__(self):
         if isinstance(self.start, dict):
