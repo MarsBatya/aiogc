@@ -8,6 +8,7 @@ from .models import Credentials, Event
 
 
 def fresh_credentials(func):
+    "a decorator to make sure credentials stay fresh, `self` argument is required"
     @functools.wraps(func)
     async def wrapper(self: "EventsManager", *args, **kwargs):
         if not self.creds.is_fresh():
@@ -28,26 +29,40 @@ class EventsManager:
         session: Optional[aiohttp.ClientSession] = None,
         version: str = "v3",
     ):
+        """
+        a shared state holder for unchanging variables in events managing
+
+        Args:
+            credentials (Credentials): aiogc.Credentials instance
+            timezone (str): `Europe/London` for example
+            calendar_id (str, optional): id of the calendar to work with. Defaults to "primary".
+            session (aiohttp.ClientSession, optional): Session instance if you need something special. Defaults to None.
+            version (str, optional): api version. not recommended to change. Defaults to "v3".
+        """
         self.creds = credentials
         self.tz = timezone
         self.calendar_id = calendar_id
-        self.session = session or aiohttp.ClientSession()
+        self.session = session
         self.version = version
 
     @property
     def header(self) -> dict[str, str]:
+        "a dict to pass as a header"
         return {"Authorization": f"Bearer {self.creds.access_token}"}
 
     @property
     def api_url(self):
+        "general url used for the requests"
         return f"{GOOGLEAPIS_BASE_URL}/calendar/{self.version}/calendars/{self.calendar_id}/events"
 
     async def start(self):
-        "for using instead of async with"
+        "for using instead of async with block"
+        if not self.session:
+            self.session = aiohttp.ClientSession()
         return self
 
     async def stop(self):
-        "for using instead of async with"
+        "for using instead of async with block"
         await self.session.close()
 
     async def __aenter__(self):
@@ -70,6 +85,9 @@ class EventsManager:
         updatedMin: Optional[str] = None,
         **params,
     ) -> Generator[Event, None, None]:
+        """
+        refer to https://developers.google.com/calendar/api/v3/reference/events/list
+        """
         extra_params = {
             "maxResults": maxResults,
             "orderBy": orderBy,
@@ -96,6 +114,9 @@ class EventsManager:
     async def insert(
         self, event: Event, sendUpdates: Literal["all", "externalOnly", "none"] = None
     ) -> Event:
+        """
+        refer to https://developers.google.com/calendar/api/v3/reference/events/insert
+        """
         async with self.session.post(
             url=self.api_url,
             json=event.dict(),
@@ -109,6 +130,9 @@ class EventsManager:
     async def update(
         self, event: Event, sendUpdates: Literal["all", "externalOnly", "none"] = None
     ) -> Event:
+        """
+        refer to https://developers.google.com/calendar/api/v3/reference/events/update
+        """
         async with self.session.put(
             url=f"{self.api_url}/{event.id}",
             json=event.dict(),
@@ -122,6 +146,9 @@ class EventsManager:
     async def delete(
         self, evend_id: str, sendUpdates: Literal["all", "externalOnly", "none"] = None
     ) -> None:
+        """
+        refer to https://developers.google.com/calendar/api/v3/reference/events/delete
+        """
         await self.session.delete(
             url=f"{self.api_url}/{evend_id}",
             headers=self.header,
@@ -131,6 +158,9 @@ class EventsManager:
 
     @fresh_credentials
     async def get(self, evend_id: str, timezone: Optional[str] = None) -> None:
+        """
+        refer to https://developers.google.com/calendar/api/v3/reference/events/get
+        """
         await self.session.get(
             url=f"{self.api_url}/{evend_id}",
             headers=self.header,
