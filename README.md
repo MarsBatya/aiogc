@@ -5,41 +5,63 @@
 
 Run this in your terminal:
 ```commandLine
-pip install aiogc
+pip install git+https://github.com/MarsBatya/aiogc.git
 ```
 
 ## Usage
 Following code prints summary and `start` and `end` datetimes of upcoming events within nearest 5 days.
 ```python
 import asyncio
-import datetime
+import arrow
 
-import aiohttp
+from aiogc.client import EventsManager
+from aiogc.models import Time, Credentials, Event
 
-from aiogc import events, models
-
-c = models.Credentials(
-	client_id='<your_client_id>',
-    client_secret='<your_client_secret>',
-    scopes=['<your_scope1>', 'your_scope2'],
-    refresh_token='<your_refresh_token>'
-)
 
 async def main():
-	async with aiohttp.ClientSession() as s:
-		es = await events.list(
-			calendar_id='<your_calendar_id>',
-			credentials=c,
-			session=s,
-			singleEvents='true',
-			timeMin=datetime.datetime.now().isoformat(),
-			timeMax=(datetime.datetime.now() + datetime.timedelta(days=5)).isoformat(),
-			orderBy='startTime',
-		)
-		for e in es:
-			print(f'{e.summary}:\n{e.start.dateTime} – {e.end.dateTime}')
+    credentials = Credentials(
+        client_id="<your_client_id>",
+        client_secret="<your_client_secret>",
+        scopes=["https://www.googleapis.com/auth/calendar"],
+        refresh_token="<refresh token obtained w/ oauth>",
+    )
+    client = EventsManager(
+        credentials=credentials,
+        timezone="<your timezone>",
+        calendar_id="<your email>",
+    )
+    await client.start()
+    try:
+        es = await client.list(maxResults=1)
+        event = es.send(None)
+        print(event.to_str())
 
-if __name__=='__main__':
-	loop = asyncio.get_event_loop()
-	loop.run_until_complete(main())
+        result = await client.insert(
+            event=Event(
+                summary="testing",
+                start=Time(dateTime=arrow.now(client.tz).shift(hours=6).isoformat()),
+                end=Time(dateTime=arrow.now(client.tz).shift(hours=7).isoformat()),
+            )
+        )
+        print("created %s (%s)" % (result.id, result.summary))
+
+        result = await client.update(
+            event=Event(
+                id=result.id,
+                summary="testing updated",
+                start=Time(dateTime=arrow.now(client.tz).shift(hours=7).isoformat()),
+                end=Time(dateTime=arrow.now(client.tz).shift(hours=8).isoformat()),
+            )
+        )
+        print("updated %s (%s)" % (result.id, result.summary))
+
+        await client.delete(result.id)
+        print("deleted %s" % result.id)
+    finally:
+        await client.stop()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
 ```
